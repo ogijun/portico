@@ -18,6 +18,10 @@ class RegistrationTest < Minitest::Test
     assert_includes error.message, "45678"
   end
 
+  def test_allows_own_port
+    Portico::Registration.check!("demo.test", client: FakeClient.new(45678), alive: ->(_) { true }, own_port: 45678)
+  end
+
   def test_free_host
     Portico::Registration.check!("demo.test", client: FakeClient.new(nil), alive: ->(_) { flunk "alive should not be called" })
   end

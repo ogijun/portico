@@ -12,10 +12,10 @@ module Portico
     end
 
     # Refuses to take a host whose current upstream is still alive.
-    # A dead upstream (left behind by kill -9) is fine to take over.
-    def self.check!(host, client:, alive: TCP_ALIVE)
+    # A dead upstream (left behind by kill -9) is fine to take over, and so is our own port.
+    def self.check!(host, client:, alive: TCP_ALIVE, own_port: nil)
       port = client.upstream_port(host)
-      return if port.nil? || !alive.(port)
+      return if port.nil? || port == own_port || !alive.(port)
 
       raise HostTaken, "portico: #{host} は別のプロセス (127.0.0.1:#{port}) が使っています。" \
                        "そちらを止めるか、config/portico.yml で host を変えてください"

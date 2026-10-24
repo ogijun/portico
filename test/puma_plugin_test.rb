@@ -55,6 +55,43 @@ class PumaPluginTest < Minitest::Test
     assert_includes File.read(second, encoding: "UTF-8"), "は別のプロセス"
   end
 
+  def test_survives_tmp_restart
+    File.write(File.join(@app, "config/puma.rb"), "port #{FIXED_PORT}\nplugin :tmp_restart\nplugin :portico\n")
+    restart_txt = File.join(@app, "tmp/restart.txt")
+    FileUtils.mkdir_p(File.dirname(restart_txt))
+    FileUtils.touch(restart_txt, mtime: Time.now - 60) # tmp_restart remembers the first mtime it sees
+    log = start_puma
+    wait_for(log, "https://demo.test")
+    sleep 3 # let tmp_restart's 2-second poll record the old mtime
+    FileUtils.touch(restart_txt)
+    @caddy.wait_until(timeout: 20) { File.read(log, encoding: "UTF-8").scan("https://demo.test").size >= 2 }
+    assert_equal "hello demo", @caddy.get("demo.test").body
+    refute_includes File.read(log, encoding: "UTF-8"), "は別のプロセス"
+  end
+
+  def test_stop_keeps_route_of_another_process
+    log = start_puma
+    wait_for(log, "https://demo.test")
+    client.register(host: "demo.test", port: 45678) # someone else took the host over
+    pid = @pids.pop
+    Process.kill("INT", pid)
+    Process.wait(pid)
+    assert_equal 45678, client.upstream_port("demo.test")
+  end
+
+  def test_stop_with_caddy_down_exits_cleanly
+    log = start_puma
+    wait_for(log, "https://demo.test")
+    @caddy.stop
+    @caddy = nil
+    pid = @pids.pop
+    Process.kill("INT", pid)
+    Process.wait(pid)
+    output = File.read(log, encoding: "UTF-8")
+    assert $?.success?, output
+    refute_match(/ECONNREFUSED/, output)
+  end
+
   def test_caddy_down_leaves_binds_untouched
     log = start_puma(admin: "http://localhost:#{TestCaddy.free_port}")
     @caddy.wait_until { Portico::Registration::TCP_ALIVE.(FIXED_PORT) }
@@ -70,7 +107,11 @@ class PumaPluginTest < Minitest::Test
   def start_puma(admin: @caddy.admin_url)
     log = File.join(@app, "puma-#{@pids.size}.log")
     env = { "BUNDLE_GEMFILE" => GEMFILE, "PORTICO_CADDY_ADMIN" => admin }
-    @pids << spawn(env, "bundle", "exec", "puma", "-C", "config/puma.rb", chdir: @app, out: log, err: [:child, :out])
+    # On restart puma resets ENV to Bundler's ORIGINAL_ENV. Spawn from a clean env so the
+    # child's "original" env is the one above, not this test process's pre-bundler env.
+    @pids << Bundler.with_unbundled_env do
+      spawn(env, "bundle", "exec", "puma", "-C", "config/puma.rb", chdir: @app, out: log, err: [:child, :out])
+    end
     log
   end
 
