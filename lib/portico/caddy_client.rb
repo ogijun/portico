@@ -7,6 +7,7 @@ module Portico
   # identified by "@id": "portico:<host>", inserted before the fallback route.
   class CaddyClient
     ROUTES = "/config/apps/http/servers/portico/routes".freeze
+    LOOPBACK = ["127.0.0.1/8", "::1/128"].freeze
 
     attr_reader :admin
 
@@ -33,7 +34,9 @@ module Portico
       unregister(host)
       route = {
         "@id" => route_id(host),
-        "match" => [{ "host" => [host] }],
+        # Caddy listens on all interfaces (an unprivileged user can bind :80/:443 only there),
+        # so only requests from this Mac reach the app. Others get the fallback page.
+        "match" => [{ "host" => [host], "remote_ip" => { "ranges" => LOOPBACK } }],
         "handle" => [{ "handler" => "reverse_proxy", "upstreams" => [{ "dial" => "127.0.0.1:#{port}" }] }],
         "terminal" => true
       }

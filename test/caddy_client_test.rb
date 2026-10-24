@@ -31,6 +31,12 @@ class CaddyClientTest < Minitest::Test
     assert_includes response.body.force_encoding("UTF-8"), "nothing.test</strong> は起動していません"
   end
 
+  def test_route_only_serves_loopback_clients
+    @client.register(host: "demo.test", port: 45678)
+    route = @caddy.routes.find { _1["@id"] == "portico:demo.test" }
+    assert_equal ["127.0.0.1/8", "::1/128"], route.dig("match", 0, "remote_ip", "ranges")
+  end
+
   def test_register_twice_replaces
     @client.register(host: "demo.test", port: 45678)
     @client.register(host: "demo.test", port: 45679)
