@@ -51,10 +51,14 @@ plugin :portico if Gem.loaded_specs.key?("portico")
 
 - `config.hosts` に `<名前>.test` と `.<名前>.test` (worktree 用) を足す
 - `APP_BASE_URL` が無ければ `https://<ホスト名>` にする。`.env` などで明示していればそちらが勝つ
-- `APP_BASE_URL` が https なら `config.assume_ssl = true`。http を明示しているアプリでは立てない
+https かどうかは Caddy が付ける `X-Forwarded-Proto` で Rails が判定する。`assume_ssl` は立てない
+(立てると Caddy を通さない `http://localhost:3000` まで https 扱いになる)。
 
-http でも開ける。ただし https を前提にした Secure cookie は http 側には送られないので、
+http でも開ける。ただし https で付いた Secure cookie は http 側には送られないので、
 http 側ではログイン状態が保てない。
+
+route は自分の Mac (127.0.0.1 / ::1) からの接続にだけ流す。Caddy は一般ユーザで動かすため
+:80/:443 を全インターフェースで開いているが、LAN からは停止中ページしか見えない。
 
 ## 困ったとき
 
