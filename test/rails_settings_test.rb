@@ -9,8 +9,13 @@ class RailsSettingsTest < Minitest::Test
   def test_defaults_to_https
     settings = Portico::RailsSettings.for(ASOBO, env: {})
     assert_equal "https://asobo.test", settings[:app_base_url]
-    assert_equal true, settings[:assume_ssl]
     assert_equal ["asobo.test", ".asobo.test"], settings[:hosts]
+  end
+
+  # https is detected from Caddy's X-Forwarded-Proto. assume_ssl would also turn
+  # direct http://localhost:3000 access (Caddy down) into https redirects.
+  def test_never_assumes_ssl
+    refute Portico::RailsSettings.for(ASOBO, env: {}).key?(:assume_ssl)
   end
 
   def test_worktree_uses_its_own_host
@@ -23,12 +28,6 @@ class RailsSettingsTest < Minitest::Test
   def test_explicit_http_base_url_is_respected
     settings = Portico::RailsSettings.for(TOMINOCLE, env: { "APP_BASE_URL" => "http://tominocle-pre.test" })
     assert_equal "http://tominocle-pre.test", settings[:app_base_url]
-    assert_equal false, settings[:assume_ssl]
-  end
-
-  def test_explicit_https_base_url
-    settings = Portico::RailsSettings.for(ASOBO, env: { "APP_BASE_URL" => "https://asobo.test" })
-    assert_equal true, settings[:assume_ssl]
   end
 
   def test_empty_base_url_counts_as_unset

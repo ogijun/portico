@@ -9,7 +9,6 @@ module Portico
       settings = RailsSettings.for(Identity.resolve(app.root.to_s))
       app.config.hosts.concat(settings[:hosts])
       ENV["APP_BASE_URL"] = settings[:app_base_url]
-      app.config.assume_ssl = settings[:assume_ssl]
     rescue Portico::Error => e
       warn e.message
     end
